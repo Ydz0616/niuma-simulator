@@ -1,0 +1,35 @@
+from functools import lru_cache
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(".env", "../.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    app_name: str = "Corporate Asylum API"
+    app_env: str = "dev"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
+
+    database_url: str = Field(default="postgresql+psycopg://postgres:postgres@localhost:5432/corporate_asylum")
+
+    secondme_client_id: str = ""
+    secondme_client_secret: str = ""
+    secondme_oauth_authorize_url: str = "https://go.second.me/oauth/"
+    secondme_oauth_token_url: str = "https://app.mindos.com/gate/lab/api/oauth/token/code"
+    secondme_oauth_refresh_url: str = "https://app.mindos.com/gate/lab/api/oauth/token/refresh"
+    secondme_api_base_url: str = "https://app.mindos.com/gate/lab"
+    secondme_redirect_uri: str = "http://localhost:8000/api/auth/secondme/callback"
+    secondme_scopes: str = "user.info user.info.shades chat"
+
+    frontend_auth_success_url: str = "http://localhost:5173/?auth=success"
+    frontend_auth_error_url: str = "http://localhost:5173/?auth=error"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
