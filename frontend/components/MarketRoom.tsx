@@ -113,7 +113,9 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
             bossType: 'HRBP'
           };
           setActiveTicket(mapped);
-          setMarketView('matching');
+          // Backend ticket is already LOCKED; jump directly into battle view
+          // to avoid UI lag showing "matching" while logs have started.
+          setMarketView('battle');
         }
       } catch (error) {
         console.error(error);
@@ -121,7 +123,7 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
     };
 
     tryAssign();
-    const dispatchInterval = setInterval(tryAssign, 2000);
+    const dispatchInterval = setInterval(tryAssign, 1000);
     return () => {
       mounted = false;
       clearInterval(dispatchInterval);
@@ -177,7 +179,7 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
     };
 
     syncMe();
-    const interval = setInterval(syncMe, 3000);
+    const interval = setInterval(syncMe, 1000);
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -195,13 +197,17 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
       id: number;
       speaker_type: string;
       speaker_name: string;
+      speaker_agent_id?: string | null;
       content: string;
       created_at: string;
     }): ChatMessage => {
+      const displayName = log.speaker_agent_id
+        ? `${log.speaker_name}#${log.speaker_agent_id.slice(0, 4)}`
+        : log.speaker_name;
       if (log.speaker_type === 'HR') {
         return {
           role: 'boss',
-          senderName: log.speaker_name,
+          senderName: displayName,
           content: log.content,
           timestamp: new Date(log.created_at).getTime()
         };
@@ -209,27 +215,28 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
       if (log.speaker_type === 'SYSTEM') {
         return {
           role: 'system',
-          senderName: log.speaker_name,
+          senderName: displayName,
           content: log.content,
           timestamp: new Date(log.created_at).getTime()
         };
       }
 
-      const existing = speakerSides.get(log.speaker_name);
+      const sideKey = log.speaker_agent_id ?? log.speaker_name;
+      const existing = speakerSides.get(sideKey);
       if (existing) {
         return {
           role: existing,
-          senderName: log.speaker_name,
+          senderName: displayName,
           content: log.content,
           timestamp: new Date(log.created_at).getTime()
         };
       }
 
       const role = speakerSides.size === 0 ? 'agent_a' : 'agent_b';
-      speakerSides.set(log.speaker_name, role);
+      speakerSides.set(sideKey, role);
       return {
         role,
-        senderName: log.speaker_name,
+        senderName: displayName,
         content: log.content,
         timestamp: new Date(log.created_at).getTime()
       };

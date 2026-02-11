@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     secondme_debug_log: bool = True
     secondme_refresh_initial_trait_on_login: bool = False
     secondme_use_shades_on_bootstrap: bool = False
+    # 导演用 SecondMe：填 access_token 时，工单生成与裁决走 SecondMe chat API，否则走 llm_client
+    secondme_director_token: str = ""
 
     llm_base_url: str = "https://api.ohmygpt.com/v1"
     llm_api_key: str = ""
@@ -44,6 +46,7 @@ class Settings(BaseSettings):
     director_agent_line_timeout_seconds: float = 10.0
     director_judge_timeout_seconds: float = 8.0
     director_cooldown_seconds: int = 5  # 战后自动回池时间，不再等待前端 manual ack
+    director_use_secondme: bool = False  # True 且 secondme_director_token 有值时，工单生成与裁决用 SecondMe chat API
 
     frontend_auth_success_url: str = "http://localhost:5173/?auth=success"
     frontend_auth_error_url: str = "http://localhost:5173/?auth=error"

@@ -103,9 +103,18 @@ class DirectorWorker:
 
     async def _tick(self) -> None:
         spawned: list[tuple[uuid.UUID, list[Participant], TicketSpec]] = []
+        spec_pool_size = max(0, int(settings.director_max_active_battles))
+        spec_pool: list[TicketSpec] = []
+        if spec_pool_size > 0:
+            # Never await external model calls while holding DB advisory lock.
+            spec_pool = list(
+                await asyncio.gather(*[self._generate_ticket_spec() for _ in range(spec_pool_size)])
+            )
+        spec_idx = 0
         with SessionLocal() as db:
             acquired = db.scalar(text("SELECT pg_try_advisory_lock(:k)"), {"k": DIRECTOR_LOCK_KEY})
             if not acquired:
+                _debug_log("director.py:_tick", "skip_tick_lock_not_acquired", {"lock_key": DIRECTOR_LOCK_KEY}, "H3")
                 return
             try:
                 # 实时监控：工单数、agent 状态分布，便于和 UI 对照 debug
@@ -142,7 +151,10 @@ class DirectorWorker:
                     if len(participants) < 2:
                         break
 
-                    ticket_spec = await self._generate_ticket_spec()
+                    if spec_idx >= len(spec_pool):
+                        break
+                    ticket_spec = spec_pool[spec_idx]
+                    spec_idx += 1
                     ticket_id = self._create_locked_ticket(db, participants, ticket_spec)
                     if ticket_id is None:
                         break
@@ -239,7 +251,7 @@ class DirectorWorker:
 
     def _pick_participants(self, db) -> list[Participant]:
         # 匹配逻辑（纯真人）：从 IDLE、未暂停、且不在任意 LOCKED 工单的 agent 中，
-        # 筛出有 secondme access_token 的真人；至少 2 人则 random.sample 抽 2 人开一单。
+        # 优先有 secondme access_token 的真人；不足时用无 token 真人补位（发言时自动走 LLM fallback）。
         # 排除已在任意 LOCKED 工单中的 agent，防止同一人同时出现在两场
         in_locked = select(TicketParticipant.agent_id).join(Ticket, Ticket.id == TicketParticipant.ticket_id).where(Ticket.status == "LOCKED")
         idle_agents = db.scalars(
@@ -249,66 +261,75 @@ class DirectorWorker:
             .limit(32)
         ).all()
 
-        # Log ALL agents' status for debugging
-        all_agents = db.scalars(select(Agent)).all()
-        for ag in all_agents:
-            u = db.get(User, ag.user_id)
-            uname = u.display_name if u else "?"
-            if ag.status != "IDLE" or ag.is_paused:
-                logger.info("agent_status: %s (%s) status=%s paused=%s", ag.nickname, uname, ag.status, ag.is_paused)
-
         if not idle_agents:
             logger.info("pick_participants: no idle agents available")
             return []
 
-        user_by_id: dict[uuid.UUID, User] = {}
-        for agent in idle_agents:
-            user = db.get(User, agent.user_id)
-            if user is not None:
-                user_by_id[agent.id] = user
+        user_ids = list({agent.user_id for agent in idle_agents})
+        users = db.scalars(select(User).where(User.id.in_(user_ids))).all()
+        user_by_id: dict[uuid.UUID, User] = {u.id: u for u in users}
 
         # 真人：非 NPC（secondme_user_id 不以 npc_ 开头）
         real_agents = [
             agent
             for agent in idle_agents
-            if (user := user_by_id.get(agent.id)) is not None and not (user.secondme_user_id or "").startswith("npc_")
+            if (user := user_by_id.get(agent.user_id)) is not None and not (user.secondme_user_id or "").startswith("npc_")
         ]
+        if len(real_agents) < 2:
+            logger.info("pick_participants: idle=%d real=%d -> insufficient real agents", len(idle_agents), len(real_agents))
+            return []
 
         picked_agents: list[Agent] = []
-        real_agents_with_token = []
-        for agent in real_agents:
-            user = user_by_id.get(agent.id)
-            if user is None:
-                continue
-            token_row = db.scalar(
-                select(OAuthToken)
-                .where(OAuthToken.user_id == user.id, OAuthToken.provider == "secondme")
-                .order_by(OAuthToken.updated_at.desc())
+        token_rows = db.scalars(
+            select(OAuthToken)
+            .where(
+                OAuthToken.user_id.in_([a.user_id for a in real_agents]),
+                OAuthToken.provider == "secondme",
+                OAuthToken.access_token.is_not(None),
             )
-            has_token = bool(token_row and token_row.access_token)
-            if has_token:
-                real_agents_with_token.append(agent)
+            .order_by(OAuthToken.user_id.asc(), OAuthToken.updated_at.desc())
+        ).all()
+        token_by_user_id: dict[uuid.UUID, str] = {}
+        for token_row in token_rows:
+            token_by_user_id.setdefault(token_row.user_id, token_row.access_token)
+
+        real_agents_with_token = [a for a in real_agents if bool(token_by_user_id.get(a.user_id))]
 
         logger.info(
-            "pick_participants: idle=%d real_with_token=%d",
-            len(idle_agents), len(real_agents_with_token),
+            "pick_participants: idle=%d real=%d real_with_token=%d",
+            len(idle_agents), len(real_agents), len(real_agents_with_token),
         )
 
-        # 纯真人匹配：至少 2 人带 token 才开单，随机抽 2 人
+        # 优先 token 真人，token 不足则用真人补位，确保池子有 2 人就能开局。
         if len(real_agents_with_token) >= 2:
             picked_agents.extend(random.sample(real_agents_with_token, 2))
-            # #region agent log
-            _debug_log("director.py:_pick_participants", "match_ok", {"picked_ids": [str(a.id) for a in picked_agents], "pool_size": len(real_agents_with_token)}, "H2")
-            # #endregion
         else:
-            # #region agent log
-            _debug_log("director.py:_pick_participants", "匹配失败(池子不足2人)", {"idle": len(idle_agents), "real_with_token": len(real_agents_with_token)}, "H1")
-            # #endregion
-            return []
+            picked_agents.extend(real_agents_with_token)
+            remain = [a for a in real_agents if a.id not in {x.id for x in picked_agents}]
+            need = 2 - len(picked_agents)
+            if len(remain) < need:
+                _debug_log(
+                    "director.py:_pick_participants",
+                    "match_fail_real_pool_unstable",
+                    {"idle": len(idle_agents), "real": len(real_agents), "real_with_token": len(real_agents_with_token)},
+                    "H1",
+                )
+                return []
+            picked_agents.extend(random.sample(remain, need))
+        _debug_log(
+            "director.py:_pick_participants",
+            "match_ok",
+            {
+                "picked_ids": [str(a.id) for a in picked_agents],
+                "real_pool": len(real_agents),
+                "token_pool": len(real_agents_with_token),
+            },
+            "H2",
+        )
 
         participants: list[Participant] = []
         for agent in picked_agents:
-            user = user_by_id.get(agent.id)
+            user = user_by_id.get(agent.user_id)
             if user is None:
                 continue
 
@@ -318,12 +339,7 @@ class DirectorWorker:
                 .order_by(AgentPromptLayer.layer_no.asc())
             ).all()
             persona_stack = [layer.trait for layer in layers] or ["擅长赋能、抓手和闭环。"]
-            token_row = db.scalar(
-                select(OAuthToken)
-                .where(OAuthToken.user_id == user.id, OAuthToken.provider == "secondme")
-                .order_by(OAuthToken.updated_at.desc())
-            )
-            token = token_row.access_token if token_row else None
+            token = token_by_user_id.get(user.id)
 
             participants.append(
                 Participant(
@@ -338,31 +354,70 @@ class DirectorWorker:
             )
         return participants
 
+    # SecondMe Act API 的 actionControl（20-8000 字，含 JSON 示例+规则+fallback）
+    _ACT_TICKET_SPEC = (
+        'Output only a valid JSON object, no explanation.\n'
+        'Structure: {"title": string, "description": string, "budget": number, "opening_line": string}.\n'
+        'title: 8-16 Chinese chars, 中国互联网职场黑话风. description: 20-50 chars. budget: integer 25-120. opening_line: max 200 chars.\n'
+        'When unclear or invalid, use: {"title": "跨部门甩锅复盘", "description": "研发与产品关于需求理解发生认知偏差，请给出闭环方案。", "budget": 42, "opening_line": "需求《跨部门甩锅复盘》已进会，谁给我一个可落地抓手？"}.'
+    )
+    _ACT_JUDGE_WINNER = (
+        'Output only a valid JSON object, no explanation.\n'
+        'Structure: {"winner_id": string, "reason": string}.\n'
+        'winner_id must be exactly one of the participant UUID or nickname from the roster. reason: max 50 Chinese chars.\n'
+        'When unclear or tie, set winner_id to the first participant id in the roster and reason to "ROI更高，执行闭环更稳。".'
+    )
+
     async def _generate_ticket_spec(self) -> TicketSpec:
         fallback_title, fallback_desc, fallback_budget = random.choice(FALLBACK_TICKETS)
         fallback_opening = f"需求《{fallback_title}》已进会，谁给我一个可落地抓手？"
 
-        system_prompt = (
+        user_prompt = "生成一个新的职场冲突工单。仅输出JSON。"
+        system_prompt_ticket = (
             "你是《牛马模拟器》的AI导演。"
             "输出必须是JSON对象，字段: title(string), description(string), budget(int), opening_line(string)。"
             "title 8-16字，description 20-50字，budget在25到120之间。"
             "主题必须是中国互联网职场黑话风。"
         )
-        user_prompt = "生成一个新的职场冲突工单。仅输出JSON。"
+        spec_source: str = "gemini"
 
         try:
-            raw = await llm_client.chat_completion(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=0.9,
-                max_tokens=200,
-            )
-            data = self._extract_json_object(raw)
+            if settings.director_use_secondme and settings.secondme_director_token:
+                try:
+                    data = await secondme_client.act_stream(
+                        access_token=settings.secondme_director_token,
+                        message=user_prompt,
+                        action_control=self._ACT_TICKET_SPEC,
+                    )
+                    spec_source = "secondme"
+                except Exception as e:  # noqa: BLE001
+                    # #region director debug
+                    _debug_log("director.py:_generate_ticket_spec", "secondme_act_failed", {"error": e.__class__.__name__, "message": str(e)[:200]})
+                    # #endregion
+                    raw = await llm_client.chat_completion(
+                        system_prompt=system_prompt_ticket,
+                        user_prompt=user_prompt,
+                        temperature=0.9,
+                        max_tokens=200,
+                    )
+                    data = self._extract_json_object(raw)
+                    spec_source = "gemini_fallback"
+            else:
+                raw = await llm_client.chat_completion(
+                    system_prompt=system_prompt_ticket,
+                    user_prompt=user_prompt,
+                    temperature=0.9,
+                    max_tokens=200,
+                )
+                data = self._extract_json_object(raw)
             title = str(data.get("title", "")).strip()[:40] or fallback_title
             desc = str(data.get("description", "")).strip()[:200] or fallback_desc
             opening = str(data.get("opening_line", "")).strip()[:200] or fallback_opening
             budget = int(data.get("budget", fallback_budget))
             budget = max(25, min(120, budget))
+            # #region director debug
+            _debug_log("director.py:_generate_ticket_spec", "director_ticket_spec", {"source": spec_source, "title": title})
+            # #endregion
             return TicketSpec(title=title, description=desc, budget=budget, opening_line=opening)
         except Exception:  # noqa: BLE001
             return TicketSpec(
@@ -581,28 +636,53 @@ class DirectorWorker:
     ) -> tuple[uuid.UUID, str]:
         roster = "\n".join([f"- {p.nickname}: {p.agent_id}" for p in participants])
         convo = "\n".join([f"[R{r}] {name}: {content}" for r, _, name, content in transcript[-40:]])
-        system_prompt = (
-            "你是AI Director中的冷酷HR，只看ROI。"
-            "输出必须是JSON对象：{\"winner_id\":\"uuid or nickname\",\"reason\":\"...\"}。"
-            "reason不超过50字。"
-        )
         user_prompt = (
             f"工单：{spec.title}\n预算：{spec.budget}\n参会者：\n{roster}\n"
             f"对话记录：\n{convo}\n"
             "选出最能卷或最有性价比的人。仅输出JSON。"
         )
+        system_prompt_judge = (
+            "你是AI Director中的冷酷HR，只看ROI。"
+            "输出必须是JSON对象：{\"winner_id\":\"uuid or nickname\",\"reason\":\"...\"}。"
+            "reason不超过50字。"
+        )
+        judge_source: str = "gemini"
         try:
-            raw = await llm_client.chat_completion(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=0.3,
-                max_tokens=180,
-            )
-            data = self._extract_json_object(raw)
+            if settings.director_use_secondme and settings.secondme_director_token:
+                try:
+                    data = await secondme_client.act_stream(
+                        access_token=settings.secondme_director_token,
+                        message=user_prompt,
+                        action_control=self._ACT_JUDGE_WINNER,
+                    )
+                    judge_source = "secondme"
+                except Exception as e:  # noqa: BLE001
+                    # #region director debug
+                    _debug_log("director.py:_judge_winner", "secondme_act_failed", {"error": e.__class__.__name__, "message": str(e)[:200]})
+                    # #endregion
+                    raw = await llm_client.chat_completion(
+                        system_prompt=system_prompt_judge,
+                        user_prompt=user_prompt,
+                        temperature=0.3,
+                        max_tokens=180,
+                    )
+                    data = self._extract_json_object(raw)
+                    judge_source = "gemini_fallback"
+            else:
+                raw = await llm_client.chat_completion(
+                    system_prompt=system_prompt_judge,
+                    user_prompt=user_prompt,
+                    temperature=0.3,
+                    max_tokens=180,
+                )
+                data = self._extract_json_object(raw)
             winner_hint = str(data.get("winner_id", "")).strip()
             reason = str(data.get("reason", "")).strip()[:120] or "ROI更高，执行闭环更稳。"
             resolved = self._resolve_winner_id(winner_hint, participants)
             if resolved:
+                # #region director debug
+                _debug_log("director.py:_judge_winner", "director_judge", {"source": judge_source, "winner_id": str(resolved), "reason": reason[:50]})
+                # #endregion
                 return resolved, reason
         except Exception:  # noqa: BLE001
             pass

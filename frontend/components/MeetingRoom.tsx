@@ -45,14 +45,17 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({ profile, setProfile, workOrde
       content: string;
       created_at: string;
     }): ChatMessage => {
+      const displayName = log.speaker_agent_id
+        ? `${log.speaker_name}#${log.speaker_agent_id.slice(0, 4)}`
+        : log.speaker_name;
       if (log.speaker_agent_id) {
-        agentNameByIdRef.current.set(log.speaker_agent_id, log.speaker_name);
+        agentNameByIdRef.current.set(log.speaker_agent_id, displayName);
       }
 
       if (log.speaker_type === 'HR') {
         return {
           role: 'boss',
-          senderName: log.speaker_name,
+          senderName: displayName,
           content: log.content,
           timestamp: new Date(log.created_at).getTime()
         };
@@ -60,27 +63,28 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({ profile, setProfile, workOrde
       if (log.speaker_type === 'SYSTEM') {
         return {
           role: 'system',
-          senderName: log.speaker_name,
+          senderName: displayName,
           content: log.content,
           timestamp: new Date(log.created_at).getTime()
         };
       }
 
-      const existing = speakerSideRef.current.get(log.speaker_name);
+      const sideKey = log.speaker_agent_id ?? log.speaker_name;
+      const existing = speakerSideRef.current.get(sideKey);
       if (existing) {
         return {
           role: existing,
-          senderName: log.speaker_name,
+          senderName: displayName,
           content: log.content,
           timestamp: new Date(log.created_at).getTime()
         };
       }
 
       const role = speakerSideRef.current.size === 0 ? 'agent_a' : 'agent_b';
-      speakerSideRef.current.set(log.speaker_name, role);
+      speakerSideRef.current.set(sideKey, role);
       return {
         role,
-        senderName: log.speaker_name,
+        senderName: displayName,
         content: log.content,
         timestamp: new Date(log.created_at).getTime()
       };
