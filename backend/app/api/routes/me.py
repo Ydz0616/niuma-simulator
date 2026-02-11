@@ -1,3 +1,4 @@
+from datetime import UTC
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -33,6 +34,16 @@ def get_me_card(user_id: UUID = Query(...), db: Session = Depends(get_db)) -> Me
     if agent is None:
         raise HTTPException(status_code=404, detail="agent not found")
 
+    # Stress/cooldown gates removed: normalize lingering cooldown to active states.
+    if agent.status == "COOLDOWN":
+        if agent.is_paused:
+            agent.status = "PAUSED"
+        else:
+            agent.status = "IDLE"
+        agent.cooldown_until = None
+        db.commit()
+        db.refresh(agent)
+
     layers = [
         PromptLayerOut(
             layer_no=layer.layer_no,
@@ -55,6 +66,9 @@ def get_me_card(user_id: UUID = Query(...), db: Session = Depends(get_db)) -> Me
         level=agent.level,
         title=agent.title,
         kpi_score=agent.kpi_score,
+        involution=agent.involution,
+        resistance=agent.resistance,
+        slacking=agent.slacking,
         win_count=agent.win_count,
         loss_count=agent.loss_count,
         status=agent.status,
@@ -136,12 +150,9 @@ def resume_agent(req: AgentStatusRequest, db: Session = Depends(get_db)) -> Agen
     if agent.status == "IN_MEETING":
         raise HTTPException(status_code=409, detail="cannot resume during meeting")
 
-    if agent.cooldown_until is not None:
-        agent.status = "COOLDOWN"
-        agent.is_paused = False
-    else:
-        agent.status = "IDLE"
-        agent.is_paused = False
+    agent.status = "IDLE"
+    agent.is_paused = False
+    agent.cooldown_until = None
     db.commit()
 
     return AgentStatusOut(
@@ -196,4 +207,59 @@ async def rebuild_initial_trait(req: AgentStatusRequest, db: Session = Depends(g
         user_id=str(user_uuid),
         updated=True,
         generated_trait=generated,
+    )
+
+
+@router.post("/agent/force-idle", response_model=AgentStatusOut)
+def force_idle_agent(req: AgentStatusRequest, db: Session = Depends(get_db)) -> AgentStatusOut:
+    """Safety valve: reset agent to IDLE only if it has no active LOCKED ticket."""
+    from app.models import Ticket, TicketParticipant
+
+    try:
+        user_uuid = UUID(req.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+
+    agent = db.scalar(select(Agent).where(Agent.user_id == user_uuid))
+    if agent is None:
+        raise HTTPException(status_code=404, detail="agent not found")
+
+    # Only proceed if agent is stuck — don't interfere with legitimate meetings
+    if agent.status != "IN_MEETING":
+        return AgentStatusOut(
+            user_id=str(user_uuid),
+            status=agent.status,
+            is_paused=agent.is_paused,
+            cooldown_until=agent.cooldown_until,
+        )
+
+    has_active = db.scalar(
+        select(func.count())
+        .select_from(TicketParticipant)
+        .join(Ticket, Ticket.id == TicketParticipant.ticket_id)
+        .where(
+            TicketParticipant.agent_id == agent.id,
+            Ticket.status == "LOCKED",
+        )
+    )
+
+    if has_active:
+        # Agent legitimately in a meeting, don't force
+        return AgentStatusOut(
+            user_id=str(user_uuid),
+            status=agent.status,
+            is_paused=agent.is_paused,
+            cooldown_until=agent.cooldown_until,
+        )
+
+    # No LOCKED ticket — this is an orphaned state, fix it
+    agent.status = "PAUSED" if agent.is_paused else "IDLE"
+    agent.cooldown_until = None
+    db.commit()
+
+    return AgentStatusOut(
+        user_id=str(user_uuid),
+        status=agent.status,
+        is_paused=agent.is_paused,
+        cooldown_until=agent.cooldown_until,
     )

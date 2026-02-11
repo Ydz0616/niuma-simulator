@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 25
     llm_max_tokens: int = 140
 
+    director_enabled: bool = True
+    director_interval_seconds: int = 8
+    director_opening_delay_seconds: float = 5.0
+    director_round_think_seconds: float = 1.0
+    director_max_active_battles: int = 2
+    director_stuck_timeout_seconds: int = 120
+    director_enable_npc_only: bool = True
+    director_agent_line_timeout_seconds: float = 10.0
+    director_judge_timeout_seconds: float = 8.0
+    director_use_npc: bool = True
+
     frontend_auth_success_url: str = "http://localhost:5173/?auth=success"
     frontend_auth_error_url: str = "http://localhost:5173/?auth=error"
 

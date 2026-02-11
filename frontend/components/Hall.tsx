@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AgentStatus, GlobalLog } from '../types';
 import Badge from './Badge';
-import { MOCK_LEADERBOARD } from '../constants';
+import { fetchLeaderboard, fetchLobbyFeed, LeaderboardItemApi } from '../services/apiService';
 
 interface HallProps {
   profile: UserProfile;
@@ -12,30 +12,56 @@ interface HallProps {
 
 const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
   const [logs, setLogs] = useState<GlobalLog[]>([]);
+  const [board, setBoard] = useState<LeaderboardItemApi[]>([]);
 
   useEffect(() => {
-    const mockDrama = [
-      "Agent 张三 刚刚在对齐会议中成功甩锅，获得 50 金币",
-      "【八卦】市场部的老王昨天摸鱼被老板抓个正着，KPI -10",
-      "【系统】P9 级大神 '卷王之王' 发布了新的职场逻辑包",
-      "Agent 李四 升级了 '深度赋能' 插件，战斗力翻倍",
-      "【警告】大规模 PUA 病毒正在研发部蔓延，请各牛马注意抗性",
-      "财务部小陈因为不肯加班，被标记为 '不稳定节点'",
-      "【突发】CEO 宣布今年奖金将转化为 '情绪价值'"
-    ];
+    let mounted = true;
+    let latestId = 0;
 
-    const interval = setInterval(() => {
-      setLogs(prev => [
-        { 
-          id: Math.random().toString(), 
-          message: mockDrama[Math.floor(Math.random() * mockDrama.length)], 
-          timestamp: Date.now(),
-          type: 'drama'
-        }, 
-        ...prev.slice(0, 15)
-      ]);
-    }, 4000);
-    return () => clearInterval(interval);
+    const poll = async () => {
+      try {
+        const feed = await fetchLobbyFeed(latestId);
+        if (!mounted) return;
+
+        if (feed.length > 0) {
+          latestId = Math.max(...feed.map(x => x.id), latestId);
+          const mapped = feed.map(item => ({
+            id: String(item.id),
+            message: item.content,
+            timestamp: new Date(item.created_at).getTime(),
+            type: 'drama' as const
+          }));
+          setLogs(prev => [...mapped, ...prev].slice(0, 30));
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 2500);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const pollBoard = async () => {
+      try {
+        const list = await fetchLeaderboard();
+        if (mounted) setBoard(list);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    pollBoard();
+    const interval = setInterval(pollBoard, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const isCooldown = profile.status === AgentStatus.COOLDOWN && Date.now() < profile.cooldownUntil;
@@ -88,17 +114,17 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
              🏆 牛马光荣榜
           </h3>
           <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2">
-            {MOCK_LEADERBOARD.map((item, idx) => (
+            {board.map((item, idx) => (
               <div key={idx} className="flex items-center gap-4 group">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-amber-500 text-black' : 'bg-neutral-800 text-gray-500'}`}>
                   {idx + 1}
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs font-black text-gray-200 group-hover:text-amber-500">{item.name}</div>
-                  <div className="text-[9px] text-gray-500 uppercase font-bold">{item.rank}</div>
+                  <div className="text-xs font-black text-gray-200 group-hover:text-amber-500">{item.nickname}</div>
+                  <div className="text-[9px] text-gray-500 uppercase font-bold">{item.title}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] font-black text-amber-500">{item.kpi}</div>
+                  <div className="text-[10px] font-black text-amber-500">{item.kpi_score}</div>
                 </div>
               </div>
             ))}

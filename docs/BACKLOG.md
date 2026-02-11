@@ -26,13 +26,13 @@
 3. Resume -> user can be selected again.
 
 ## Phase 3 - Battle Data Plane
-- [ ] Add models: `tickets`, `ticket_participants`, `battle_logs`, `feed_events`
+- [x] Add models: `tickets`, `ticket_participants`, `battle_logs`, `feed_events`
 - [ ] Implement APIs:
-  - [ ] `GET /api/battles/active`
-  - [ ] `GET /api/battles/{ticket_id}`
-  - [ ] `GET /api/battles/{ticket_id}/logs?after_id=`
-  - [ ] `GET /api/lobby/feed`
-  - [ ] `GET /api/leaderboard`
+  - [x] `GET /api/battles/active`
+  - [x] `GET /api/battles/{ticket_id}`
+  - [x] `GET /api/battles/{ticket_id}/logs?after_id=`
+  - [x] `GET /api/lobby/feed`
+  - [x] `GET /api/leaderboard`
 
 ### Integration Tests
 1. Polling `after_id` returns only incremental logs.
@@ -40,9 +40,9 @@
 3. Leaderboard reflects score updates.
 
 ## Phase 4 - Director Loop
-- [ ] Build `director` loop: spawn -> match -> pitch -> roast -> verdict -> settle
+- [x] Build `director` loop: spawn -> match -> pitch -> roast -> verdict -> settle (template v1)
 - [ ] Add single-instance lock (PG advisory lock)
-- [ ] Add cooldown logic and reset to `IDLE`
+- [x] Add cooldown logic and reset to `IDLE`
 
 ### Integration Tests
 1. Run director for 10 minutes and verify tickets flow `OPEN -> LOCKED -> CLOSED`.

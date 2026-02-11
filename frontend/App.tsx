@@ -13,6 +13,9 @@ interface MeCardResponse {
   level: number;
   title: string;
   kpi_score: number;
+  involution: number;
+  resistance: number;
+  slacking: number;
   win_count: number;
   loss_count: number;
   status: string;
@@ -94,7 +97,10 @@ const App: React.FC = () => {
       gold: Math.max(50, Math.floor(card.kpi_score / 2)),
       attributes: {
         ...INITIAL_ATTRIBUTES,
-        kpi: card.kpi_score
+        kpi: card.kpi_score,
+        involution: card.involution,
+        resistance: card.resistance,
+        slacking: card.slacking
       },
       personality: Personality.OLD_SLICK,
       logicHistory,

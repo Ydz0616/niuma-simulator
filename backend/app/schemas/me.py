@@ -44,6 +44,9 @@ class MeCardOut(BaseModel):
     level: int
     title: str
     kpi_score: int
+    involution: int
+    resistance: int
+    slacking: int
     win_count: int
     loss_count: int
     status: str
