@@ -50,6 +50,7 @@ class MeCardOut(BaseModel):
     win_count: int
     loss_count: int
     status: str
+    rank: int
     cooldown_until: datetime | None
     is_paused: bool
     prompt_layers: list[PromptLayerOut]

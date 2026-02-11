@@ -19,6 +19,7 @@ interface MeCardResponse {
   win_count: number;
   loss_count: number;
   status: string;
+  rank: number;
   cooldown_until: string | null;
   prompt_layers: Array<{
     layer_no: number;
@@ -70,6 +71,7 @@ const App: React.FC = () => {
         attitude: '客气但有刺，专业但甩锅。'
       },
       status: AgentStatus.IDLE,
+      rank: 9999,
       cooldownUntil: 0,
       workOrdersCompleted: 0
     };
@@ -110,6 +112,7 @@ const App: React.FC = () => {
         attitude: '客气但有刺，专业但甩锅。'
       },
       status: mapAgentStatus(card.status),
+      rank: card.rank,
       cooldownUntil: card.cooldown_until ? new Date(card.cooldown_until).getTime() : 0,
       workOrdersCompleted: card.win_count + card.loss_count
     };

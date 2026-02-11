@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, AgentStatus, GlobalLog } from '../types';
 import Badge from './Badge';
 import { fetchLeaderboard, fetchLobbyFeed, LeaderboardItemApi } from '../services/apiService';
+import { getLevelTitle } from '../utils/levelTitles';
 
 interface HallProps {
   profile: UserProfile;
@@ -110,25 +111,64 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
 
       <div className="lg:col-span-3">
         <section className="bg-neutral-900/80 border border-white/5 p-6 rounded-3xl shadow-xl h-full flex flex-col">
-          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6 border-b border-white/5 pb-4">
-             🏆 牛马光荣榜
-          </h3>
-          <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2">
-            {board.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-4 group">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-amber-500 text-black' : 'bg-neutral-800 text-gray-500'}`}>
-                  {idx + 1}
+          <div className="flex justify-between items-end mb-6 border-b border-white/5 pb-4">
+             <div>
+               <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-4">
+                  🏆 牛马光荣榜
+               </h3>
+               <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mt-1">
+                  Rank: <span className="text-white">#{profile.rank > 999 ? '999+' : profile.rank}</span>
+               </div>
+             </div>
+             <div className="text-[9px] text-amber-500 font-black uppercase tracking-widest">
+                KPI SCORE ↴
+             </div>
+          </div>
+
+          <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
+            {board.slice(0, 8).map((item, idx) => {
+              const isMe = item.nickname === profile.name;
+              return (
+                <div key={idx} className={`flex items-center gap-4 group ${isMe ? 'bg-white/5 p-2 rounded-lg -mx-2' : ''}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-amber-500 text-black' : isMe ? 'bg-amber-500/20 text-amber-500' : 'bg-neutral-800 text-gray-500'}`}>
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className={`text-xs font-black group-hover:text-amber-500 ${isMe ? 'text-amber-500' : 'text-gray-200'}`}>
+                      {item.nickname} {isMe && <span className="text-white/30 ml-1">(我)</span>}
+                    </div>
+                    <div className="text-[9px] text-gray-500 uppercase font-bold">{getLevelTitle(item.level)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-[10px] font-black ${isMe ? 'text-amber-500' : 'text-amber-500'}`}>{item.kpi_score}</div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <div className="text-xs font-black text-gray-200 group-hover:text-amber-500">{item.nickname}</div>
-                  <div className="text-[9px] text-gray-500 uppercase font-bold">{item.title}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] font-black text-amber-500">{item.kpi_score}</div>
+              );
+            })}
+          </div>
+          
+          {/* Sticky footer for my rank if not in top 8 */}
+          {board.length > 0 && !board.slice(0, 8).find(i => i.nickname === profile.name) && (
+            <div className="mt-auto">
+               <div className="flex justify-center text-white/10 text-xl font-black leading-none mb-2 pb-2">. . .</div>
+               <div className="pt-4 border-t border-white/10">
+                <div className="flex items-center gap-4 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs bg-amber-500 text-black">
+                    {profile.rank <= 10 ? profile.rank : '?'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-xs font-black text-amber-500">
+                      {profile.rank <= 10 ? '我的排名' : '还需努力'} <span className="text-amber-500/50 ml-1">(我)</span>
+                    </div>
+                    <div className="text-[9px] text-gray-400 uppercase font-bold">{getLevelTitle(profile.level)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-black text-amber-500">{profile.attributes.kpi}</div>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </section>
       </div>
     </div>

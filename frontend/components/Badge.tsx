@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { UserProfile, AgentStatus, LogicUpgrade } from '../types';
+import { getLevelTitle } from '../utils/levelTitles';
 
 interface BadgeProps {
   profile: UserProfile;
@@ -86,6 +87,7 @@ const Badge: React.FC<BadgeProps> = ({ profile, setProfile, isEditable = false }
 
             <h3 className="text-2xl font-black text-white uppercase tracking-widest text-center">{profile.name}</h3>
             <p className="text-xs text-amber-500/80 font-mono mb-6">{profile.idNumber}</p>
+            <div className="text-xs font-black text-white/50 mb-4">{getLevelTitle(profile.level)}</div>
 
             <div className="w-full space-y-4">
               <AttributeRow label="内卷指数 (压力)" value={profile.attributes.involution} color={profile.attributes.involution > 80 ? 'bg-red-500' : 'bg-amber-500'} sub="100% 将强制休息" />

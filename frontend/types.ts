@@ -46,6 +46,7 @@ export interface UserProfile {
   logicHistory: LogicUpgrade[];
   promptLayer: PromptLayer;
   status: AgentStatus;
+  rank: number;
   cooldownUntil: number;
   workOrdersCompleted: number;
 }

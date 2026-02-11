@@ -54,6 +54,17 @@ def get_me_card(user_id: UUID = Query(...), db: Session = Depends(get_db)) -> Me
         for layer in agent.prompt_layers
     ]
 
+    # Calculate rank: count agents with better stats
+    # Better means: higher kpi, or same kpi + higher win_count, or same both + earlier created_at
+    better_rank_count = db.scalar(
+        select(func.count()).select_from(Agent).where(
+            (Agent.kpi_score > agent.kpi_score) |
+            ((Agent.kpi_score == agent.kpi_score) & (Agent.win_count > agent.win_count)) |
+            ((Agent.kpi_score == agent.kpi_score) & (Agent.win_count == agent.win_count) & (Agent.created_at < agent.created_at))
+        )
+    ) or 0
+    current_rank = better_rank_count + 1
+
     return MeCardOut(
         user_id=str(user.id),
         secondme_user_id=user.secondme_user_id,
@@ -72,6 +83,7 @@ def get_me_card(user_id: UUID = Query(...), db: Session = Depends(get_db)) -> Me
         win_count=agent.win_count,
         loss_count=agent.loss_count,
         status=agent.status,
+        rank=current_rank,
         cooldown_until=agent.cooldown_until,
         is_paused=agent.is_paused,
         prompt_layers=layers,
