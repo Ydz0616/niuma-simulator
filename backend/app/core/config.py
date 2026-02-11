@@ -41,10 +41,8 @@ class Settings(BaseSettings):
     director_round_think_seconds: float = 1.0
     director_max_active_battles: int = 2
     director_stuck_timeout_seconds: int = 120
-    director_enable_npc_only: bool = True
     director_agent_line_timeout_seconds: float = 10.0
     director_judge_timeout_seconds: float = 8.0
-    director_use_npc: bool = True
     director_cooldown_seconds: int = 5  # 战后自动回池时间，不再等待前端 manual ack
 
     frontend_auth_success_url: str = "http://localhost:5173/?auth=success"

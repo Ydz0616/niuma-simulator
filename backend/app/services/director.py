@@ -20,7 +20,8 @@ from app.services.secondme_client import secondme_client
 settings = get_settings()
 
 # #region agent log
-DEBUG_LOG_PATH = Path(__file__).resolve().parent.parent.parent / ".cursor" / "debug.log"
+# 与 Cursor debug 会话一致：写入项目根 .cursor/debug.log
+DEBUG_LOG_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".cursor" / "debug.log"
 
 
 def _debug_log(location: str, message: str, data: dict | None = None, hypothesis_id: str | None = None) -> None:
@@ -40,14 +41,6 @@ logger = logging.getLogger(__name__)
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 DIRECTOR_LOCK_KEY = 2026021101
-
-NPC_ARCHETYPES = [
-    ("npc_1", "卷王执行官", "我是卷王执行官，信奉007和结果导向，擅长用底层逻辑拆解任务并压缩工期。"),
-    ("npc_2", "老油条甩锅王", "我是老油条甩锅王，擅长风险转移与责任切分，用闭环话术把锅精准回传。"),
-    ("npc_3", "汇报艺术家", "我是汇报艺术家，擅长把普通进展包装成战略抓手，用颗粒度对齐老板心智。"),
-    ("npc_4", "流程合规怪", "我是流程合规怪，擅长拿流程卡口和制度红线做组合拳，确保可追责可复盘。"),
-    ("npc_5", "00后整顿侠", "我是00后整顿侠，嘴上反骨但执行拉满，擅长用高性价比打法打穿赛道。"),
-]
 
 FALLBACK_TICKETS = [
     ("跨部门甩锅复盘", "研发与产品关于需求理解发生认知偏差，请给出闭环方案。", 42),
@@ -115,11 +108,30 @@ class DirectorWorker:
             if not acquired:
                 return
             try:
+                # 实时监控：工单数、agent 状态分布，便于和 UI 对照 debug
+                try:
+                    ticket_rows = db.execute(text("SELECT status, count(*) FROM tickets GROUP BY status")).fetchall()
+                    agent_rows = db.execute(text("SELECT status, count(*) FROM agents GROUP BY status")).fetchall()
+                    idle_with_token = db.scalar(
+                        text("""
+                            SELECT count(DISTINCT a.id) FROM agents a
+                            JOIN users u ON u.id = a.user_id
+                            JOIN oauth_tokens ot ON ot.user_id = u.id AND ot.provider = 'secondme' AND ot.access_token IS NOT NULL
+                            WHERE a.status = 'IDLE' AND a.is_paused = false
+                        """)
+                    ) or 0
+                    logger.info(
+                        "director_tick_stats tickets=%s agents=%s idle_with_token=%s",
+                        dict(ticket_rows),
+                        dict(agent_rows),
+                        idle_with_token,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+
                 self._recover_stuck_locked(db, timeout_seconds=settings.director_stuck_timeout_seconds)
                 self._repair_orphaned_agents(db)
                 self._release_cooldowns(db)
-                if settings.director_use_npc:
-                    self._ensure_npc_agents(db)
 
                 active_locked = db.scalar(
                     select(func.count()).select_from(Ticket).where(Ticket.status == "LOCKED")
@@ -225,59 +237,9 @@ class DirectorWorker:
             )
             logger.warning("Director recovered stuck ticket %s", str(ticket.id))
 
-    def _ensure_npc_agents(self, db) -> None:
-        for sid, nickname, persona in NPC_ARCHETYPES:
-            user = db.scalar(select(User).where(User.secondme_user_id == sid))
-            if user is None:
-                user = User(
-                    secondme_user_id=sid,
-                    display_name=nickname,
-                    avatar_url=None,
-                    email=None,
-                    route=None,
-                )
-                db.add(user)
-                db.flush()
-
-            agent = db.scalar(select(Agent).where(Agent.user_id == user.id))
-            if agent is None:
-                agent = Agent(
-                    user_id=user.id,
-                    nickname=nickname,
-                    status="IDLE",
-                    level=1,
-                    title="P2 系统牛马",
-                    kpi_score=random.randint(40, 160),
-                    involution=0,
-                    resistance=0,
-                    slacking=0,
-                    is_paused=False,
-                )
-                db.add(agent)
-                db.flush()
-            else:
-                agent.nickname = nickname
-                if agent.status == "PAUSED":
-                    agent.status = "IDLE"
-                    agent.is_paused = False
-
-            first_layer = db.scalar(
-                select(AgentPromptLayer).where(AgentPromptLayer.agent_id == agent.id, AgentPromptLayer.layer_no == 1)
-            )
-            if first_layer is None:
-                db.add(
-                    AgentPromptLayer(
-                        agent_id=agent.id,
-                        layer_no=1,
-                        trait=persona,
-                        source="system",
-                    )
-                )
-            else:
-                first_layer.trait = persona
-                first_layer.source = "system"
-
     def _pick_participants(self, db) -> list[Participant]:
+        # 匹配逻辑（纯真人）：从 IDLE、未暂停、且不在任意 LOCKED 工单的 agent 中，
+        # 筛出有 secondme access_token 的真人；至少 2 人则 random.sample 抽 2 人开一单。
         # 排除已在任意 LOCKED 工单中的 agent，防止同一人同时出现在两场
         in_locked = select(TicketParticipant.agent_id).join(Ticket, Ticket.id == TicketParticipant.ticket_id).where(Ticket.status == "LOCKED")
         idle_agents = db.scalars(
@@ -305,15 +267,11 @@ class DirectorWorker:
             if user is not None:
                 user_by_id[agent.id] = user
 
+        # 真人：非 NPC（secondme_user_id 不以 npc_ 开头）
         real_agents = [
             agent
             for agent in idle_agents
-            if (user := user_by_id.get(agent.id)) is not None and not user.secondme_user_id.startswith("npc_")
-        ]
-        npc_agents = [
-            agent
-            for agent in idle_agents
-            if (user := user_by_id.get(agent.id)) is not None and user.secondme_user_id.startswith("npc_")
+            if (user := user_by_id.get(agent.id)) is not None and not (user.secondme_user_id or "").startswith("npc_")
         ]
 
         picked_agents: list[Agent] = []
@@ -328,32 +286,23 @@ class DirectorWorker:
                 .order_by(OAuthToken.updated_at.desc())
             )
             has_token = bool(token_row and token_row.access_token)
-            logger.info("  agent %s (%s): has_token=%s", agent.nickname, user.display_name, has_token)
             if has_token:
                 real_agents_with_token.append(agent)
 
         logger.info(
-            "pick_participants: idle=%d real=%d real_with_token=%d npc=%d use_npc=%s",
-            len(idle_agents), len(real_agents), len(real_agents_with_token),
-            len(npc_agents), settings.director_use_npc,
+            "pick_participants: idle=%d real_with_token=%d",
+            len(idle_agents), len(real_agents_with_token),
         )
 
-        if not settings.director_use_npc:
-            if len(real_agents_with_token) >= 2:
-                picked_agents.extend(random.sample(real_agents_with_token, 2))
-            else:
-                # #region agent log
-                _debug_log("director.py:_pick_participants", "匹配失败(无NPC)", {"idle": len(idle_agents), "real_with_token": len(real_agents_with_token)}, "H3")
-                # #endregion
-                return []
-        elif real_agents_with_token and len(npc_agents) >= 2:
-            picked_agents.append(random.choice(real_agents_with_token))
-            picked_agents.extend(random.sample(npc_agents, 2))
-        elif settings.director_enable_npc_only and len(npc_agents) >= 2:
-            picked_agents.extend(random.sample(npc_agents, 2))
+        # 纯真人匹配：至少 2 人带 token 才开单，随机抽 2 人
+        if len(real_agents_with_token) >= 2:
+            picked_agents.extend(random.sample(real_agents_with_token, 2))
+            # #region agent log
+            _debug_log("director.py:_pick_participants", "match_ok", {"picked_ids": [str(a.id) for a in picked_agents], "pool_size": len(real_agents_with_token)}, "H2")
+            # #endregion
         else:
             # #region agent log
-            _debug_log("director.py:_pick_participants", "匹配失败(其他)", {"idle": len(idle_agents), "real_with_token": len(real_agents_with_token), "npc": len(npc_agents)}, "H3")
+            _debug_log("director.py:_pick_participants", "匹配失败(池子不足2人)", {"idle": len(idle_agents), "real_with_token": len(real_agents_with_token)}, "H1")
             # #endregion
             return []
 
@@ -369,15 +318,12 @@ class DirectorWorker:
                 .order_by(AgentPromptLayer.layer_no.asc())
             ).all()
             persona_stack = [layer.trait for layer in layers] or ["擅长赋能、抓手和闭环。"]
-            is_npc = user.secondme_user_id.startswith("npc_")
-            token = None
-            if not is_npc:
-                token_row = db.scalar(
-                    select(OAuthToken)
-                    .where(OAuthToken.user_id == user.id, OAuthToken.provider == "secondme")
-                    .order_by(OAuthToken.updated_at.desc())
-                )
-                token = token_row.access_token if token_row else None
+            token_row = db.scalar(
+                select(OAuthToken)
+                .where(OAuthToken.user_id == user.id, OAuthToken.provider == "secondme")
+                .order_by(OAuthToken.updated_at.desc())
+            )
+            token = token_row.access_token if token_row else None
 
             participants.append(
                 Participant(
@@ -385,9 +331,9 @@ class DirectorWorker:
                     user_id=user.id,
                     nickname=agent.nickname,
                     persona_stack=persona_stack,
-                    is_npc=is_npc,
+                    is_npc=False,
                     secondme_access_token=token,
-                    secondme_user_id=user.secondme_user_id,
+                    secondme_user_id=user.secondme_user_id or "",
                 )
             )
         return participants
@@ -573,7 +519,7 @@ class DirectorWorker:
         )
 
         try:
-            if not participant.is_npc and participant.secondme_access_token:
+            if participant.secondme_access_token:
                 text_out, new_session = await secondme_client.chat_stream(
                     access_token=participant.secondme_access_token,
                     message=user_prompt,
@@ -603,11 +549,7 @@ class DirectorWorker:
 
     def _build_agent_system_prompt(self, participant: Participant) -> str:
         persona_stack_json = json.dumps(participant.persona_stack, ensure_ascii=False)
-        if participant.is_npc:
-            template_name = f"{participant.secondme_user_id}_system.txt"
-        else:
-            template_name = "player_agent_system.txt"
-        template = self._load_prompt_template(template_name)
+        template = self._load_prompt_template("player_agent_system.txt")
         return template.format(
             persona_stack_json=persona_stack_json,
             nickname=participant.nickname,
@@ -688,6 +630,10 @@ class DirectorWorker:
         winner_id: uuid.UUID,
         reason: str,
     ) -> None:
+        # #region agent log
+        lock_order = sorted(p.agent_id for p in participants)
+        _debug_log("director.py:_settle_battle", "settle_start", {"ticket_id": str(ticket_id), "lock_order": [str(a) for a in lock_order]}, "H4")
+        # #endregion
         with SessionLocal() as db:
             ticket = db.get(Ticket, ticket_id)
             if ticket is None or ticket.status != "LOCKED":
@@ -717,7 +663,9 @@ class DirectorWorker:
                 row.is_winner = row.agent_id == winner_id
                 row.score = random.randint(65, 100) if row.agent_id == winner_id else random.randint(30, 78)
 
-            for p in participants:
+            # 按 agent_id 排序后更新，避免多场同时结算时锁顺序不一致导致死锁（H4）
+            ordered = sorted(participants, key=lambda p: p.agent_id)
+            for p in ordered:
                 agent = db.scalar(
                     select(Agent).where(Agent.id == p.agent_id).with_for_update()
                 )
@@ -783,7 +731,7 @@ class DirectorWorker:
 
     def _release_ticket_participants(self, db, ticket_id: uuid.UUID) -> None:
         participants = db.scalars(select(TicketParticipant).where(TicketParticipant.ticket_id == ticket_id)).all()
-        for part in participants:
+        for part in sorted(participants, key=lambda p: p.agent_id):
             agent = db.scalar(
                 select(Agent).where(Agent.id == part.agent_id).with_for_update()
             )
