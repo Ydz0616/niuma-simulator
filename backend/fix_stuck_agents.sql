@@ -10,7 +10,8 @@ WHERE status = 'IN_MEETING'
     WHERE t.status = 'LOCKED'
   );
 
--- 2. 把所有 COOLDOWN 但 cooldown_until 已过期的 agent 清回 IDLE
+-- 2. 把所有 COOLDOWN 的 agent 清回 IDLE（含 cooldown_until=NULL 的“等手动确认”僵尸）
+--    热更后新逻辑已改为 5 秒自动回池，此步主要救历史脏数据
 UPDATE agents SET status = 'IDLE', cooldown_until = NULL
 WHERE status = 'COOLDOWN'
   AND (cooldown_until IS NULL OR cooldown_until <= NOW());

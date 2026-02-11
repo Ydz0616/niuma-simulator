@@ -18,6 +18,24 @@ from app.services.llm_client import llm_client
 from app.services.secondme_client import secondme_client
 
 settings = get_settings()
+
+# #region agent log
+DEBUG_LOG_PATH = Path(__file__).resolve().parent.parent.parent / ".cursor" / "debug.log"
+
+
+def _debug_log(location: str, message: str, data: dict | None = None, hypothesis_id: str | None = None) -> None:
+    try:
+        payload = {"id": f"log_{id(datetime.now(UTC))}", "timestamp": int(datetime.now(UTC).timestamp() * 1000), "location": location, "message": message}
+        if data:
+            payload["data"] = data
+        if hypothesis_id:
+            payload["hypothesisId"] = hypothesis_id
+        DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001
+        pass
+# #endregion
 logger = logging.getLogger(__name__)
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
@@ -130,8 +148,12 @@ class DirectorWorker:
     def _release_cooldowns(self, db) -> None:
         now = datetime.now(UTC)
         rows = db.scalars(select(Agent).where(Agent.status == "COOLDOWN")).all()
+        # #region agent log
+        skipped_none = sum(1 for a in rows if a.cooldown_until is None)
+        released = 0
+        # #endregion
         for agent in rows:
-            # cooldown_until=None means post-battle waiting for manual ack, don't auto-release
+            # cooldown_until=None 已改为自动设过期时间，此处仅兼容历史脏数据
             if agent.cooldown_until is None:
                 continue
             if agent.cooldown_until > now:
@@ -141,6 +163,13 @@ class DirectorWorker:
             else:
                 agent.status = "IDLE"
             agent.cooldown_until = None
+            # #region agent log
+            released += 1
+            # #endregion
+        # #region agent log
+        if skipped_none or released:
+            _debug_log("director.py:_release_cooldowns", "cooldown release", {"skipped_none": skipped_none, "released": released, "total_cooldown": len(rows)}, "H1")
+        # #endregion
 
     def _repair_orphaned_agents(self, db) -> None:
         """Fix agents stuck in IN_MEETING with no active LOCKED ticket."""
@@ -249,8 +278,13 @@ class DirectorWorker:
                 first_layer.source = "system"
 
     def _pick_participants(self, db) -> list[Participant]:
+        # 排除已在任意 LOCKED 工单中的 agent，防止同一人同时出现在两场
+        in_locked = select(TicketParticipant.agent_id).join(Ticket, Ticket.id == TicketParticipant.ticket_id).where(Ticket.status == "LOCKED")
         idle_agents = db.scalars(
-            select(Agent).where(Agent.status == "IDLE", Agent.is_paused.is_(False)).order_by(func.random()).limit(32)
+            select(Agent)
+            .where(Agent.status == "IDLE", Agent.is_paused.is_(False), ~Agent.id.in_(in_locked))
+            .order_by(func.random())
+            .limit(32)
         ).all()
 
         # Log ALL agents' status for debugging
@@ -308,6 +342,9 @@ class DirectorWorker:
             if len(real_agents_with_token) >= 2:
                 picked_agents.extend(random.sample(real_agents_with_token, 2))
             else:
+                # #region agent log
+                _debug_log("director.py:_pick_participants", "匹配失败(无NPC)", {"idle": len(idle_agents), "real_with_token": len(real_agents_with_token)}, "H3")
+                # #endregion
                 return []
         elif real_agents_with_token and len(npc_agents) >= 2:
             picked_agents.append(random.choice(real_agents_with_token))
@@ -315,6 +352,9 @@ class DirectorWorker:
         elif settings.director_enable_npc_only and len(npc_agents) >= 2:
             picked_agents.extend(random.sample(npc_agents, 2))
         else:
+            # #region agent log
+            _debug_log("director.py:_pick_participants", "匹配失败(其他)", {"idle": len(idle_agents), "real_with_token": len(real_agents_with_token), "npc": len(npc_agents)}, "H3")
+            # #endregion
             return []
 
         participants: list[Participant] = []
@@ -402,6 +442,7 @@ class DirectorWorker:
             agent = db.get(Agent, p.agent_id)
             if agent is not None:
                 agent.status = "IN_MEETING"
+        db.flush()  # 确保下一轮 _pick_participants 在同一 tick 内能看到 IN_MEETING，避免同一人进两场
 
         db.add(
             BattleLog(
@@ -462,7 +503,11 @@ class DirectorWorker:
                         line = self._fallback_agent_line(round_no=round_no)
                         session_id = chat_sessions.get(participant.agent_id)
                     chat_sessions[participant.agent_id] = session_id
-                    self._append_log(
+                    # #region agent log
+                    t0 = datetime.now(UTC).timestamp()
+                    # #endregion
+                    await asyncio.to_thread(
+                        self._append_log,
                         ticket_id=ticket_id,
                         round_no=round_no,
                         speaker_type="AGENT",
@@ -470,6 +515,9 @@ class DirectorWorker:
                         speaker_name=participant.nickname,
                         content=line,
                     )
+                    # #region agent log
+                    _debug_log("director.py:_run_battle", "append_log duration", {"ticket_id": str(ticket_id), "round": round_no, "duration_ms": int((datetime.now(UTC).timestamp() - t0) * 1000)}, "H2")
+                    # #endregion
                     transcript.append((round_no, participant.agent_id, participant.nickname, line))
                     await asyncio.sleep(settings.director_round_think_seconds)
 
@@ -484,15 +532,22 @@ class DirectorWorker:
                 logger.warning("judge timeout ticket=%s", str(ticket_id))
                 fallback = random.choice(participants)
                 winner_id, reason = fallback.agent_id, "系统兜底裁决：执行稳定性更高。"
-            self._settle_battle(
+            # #region agent log
+            t_settle0 = datetime.now(UTC).timestamp()
+            # #endregion
+            await asyncio.to_thread(
+                self._settle_battle,
                 ticket_id=ticket_id,
                 participants=participants,
                 winner_id=winner_id,
                 reason=reason,
             )
+            # #region agent log
+            _debug_log("director.py:_run_battle", "settle_battle duration", {"ticket_id": str(ticket_id), "duration_ms": int((datetime.now(UTC).timestamp() - t_settle0) * 1000)}, "H2")
+            # #endregion
         except Exception as exc:  # noqa: BLE001
             logger.exception("battle run failed ticket=%s", str(ticket_id))
-            self._abort_ticket(ticket_id, f"导演异常回收：{exc.__class__.__name__}")
+            await asyncio.to_thread(self._abort_ticket, ticket_id, f"导演异常回收：{exc.__class__.__name__}")
 
     async def _generate_agent_line(
         self,
@@ -679,7 +734,11 @@ class DirectorWorker:
                     agent.status = "PAUSED"
                 else:
                     agent.status = "COOLDOWN"
-                    agent.cooldown_until = None  # no timer = waiting for manual ack
+                    # 5 秒（或配置）后自动回池，不再等待前端 manual ack，避免池子被抽干
+                    agent.cooldown_until = datetime.now(UTC) + timedelta(seconds=settings.director_cooldown_seconds)
+                # #region agent log
+                _debug_log("director.py:_settle_battle", "agent cooldown set", {"agent_id": str(p.agent_id), "cooldown_seconds": settings.director_cooldown_seconds}, "H1")
+                # #endregion
                 if is_winner:
                     agent.win_count += 1
                 else:

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     director_agent_line_timeout_seconds: float = 10.0
     director_judge_timeout_seconds: float = 8.0
     director_use_npc: bool = True
+    director_cooldown_seconds: int = 5  # 战后自动回池时间，不再等待前端 manual ack
 
     frontend_auth_success_url: str = "http://localhost:5173/?auth=success"
     frontend_auth_error_url: str = "http://localhost:5173/?auth=error"

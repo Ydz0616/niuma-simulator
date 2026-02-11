@@ -145,13 +145,18 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({ profile, setProfile, workOrde
     return hrMessages[hrMessages.length - 1].content;
   }, [messages]);
 
+  // 结算后不再本地改 status，以后端为准（后端会设为 COOLDOWN），避免覆盖
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+
+  // 会议结算后 4 秒自动返回市场（用 ref 避免 onExit 变化导致 timeout 被反复清除）
   useEffect(() => {
     if (battleStatus !== 'CLOSED') return;
-    setProfile((prev) => ({
-      ...prev,
-      status: prev.status === AgentStatus.IN_MEETING ? AgentStatus.IDLE : prev.status
-    }));
-  }, [battleStatus, setProfile]);
+    const t = setTimeout(() => {
+      onExitRef.current();
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [battleStatus]);
 
   return (
     <div className="flex flex-col h-full bg-neutral-950/20 relative">

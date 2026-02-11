@@ -556,7 +556,28 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
                  profile={profile} 
                  setProfile={setProfile} 
                  workOrder={activeTicket} 
-                 onExit={() => {
+                 onExit={async () => {
+                   const userId = localStorage.getItem('ox_horse_user_id');
+                   if (userId) {
+                     try {
+                       const card = await fetchMeCard(userId);
+                       setProfile((prev) => ({
+                         ...prev,
+                         level: card.level,
+                         status: mapAgentStatus(card.status),
+                         cooldownUntil: card.cooldown_until ? new Date(card.cooldown_until).getTime() : 0,
+                         attributes: {
+                           ...prev.attributes,
+                           kpi: card.kpi_score,
+                           involution: card.involution,
+                           resistance: card.resistance,
+                           slacking: card.slacking
+                         }
+                       }));
+                     } catch (e) {
+                       console.error(e);
+                     }
+                   }
                    setActiveTicket(null);
                    setMarketView('idle');
                  }} 

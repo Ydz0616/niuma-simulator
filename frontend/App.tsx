@@ -156,14 +156,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (profile.status === AgentStatus.COOLDOWN) {
-        if (Date.now() >= profile.cooldownUntil) {
-          setProfile(prev => ({ 
-            ...prev, 
-            status: AgentStatus.IDLE, 
-            attributes: { ...prev.attributes, involution: 0 }
-          }));
-        }
+      if (profile.status !== AgentStatus.COOLDOWN) return;
+      const now = Date.now();
+      const until = profile.cooldownUntil;
+      // 已过期、或无效/未设置(cooldownUntil<=0/NaN) 则自动恢复待命
+      if (!Number.isFinite(until) || until <= 0 || now >= until) {
+        setProfile(prev => ({
+          ...prev,
+          status: AgentStatus.IDLE,
+          attributes: { ...prev.attributes, involution: 0 }
+        }));
       }
     }, 1000);
     return () => clearInterval(timer);
