@@ -12,27 +12,57 @@ const Badge: React.FC<BadgeProps> = ({ profile, setProfile, isEditable = false }
   const [isFlipped, setIsFlipped] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDetail, setNewDetail] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const addLogic = () => {
+  const addLogic = async () => {
     if (!setProfile || !newTitle || !newDetail) return;
-    const upgrade: LogicUpgrade = {
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: Date.now(),
-      title: newTitle,
-      detail: newDetail
-    };
-    setProfile(prev => ({
-      ...prev,
-      logicHistory: [upgrade, ...prev.logicHistory]
-    }));
-    setNewTitle('');
-    setNewDetail('');
+    const userId = localStorage.getItem('ox_horse_user_id');
+    if (!userId) {
+      alert('未找到用户登录态，请重新登录');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const resp = await fetch(`${apiBase}/api/me/evolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          title: newTitle,
+          new_trait: newDetail
+        })
+      });
+      if (!resp.ok) {
+        throw new Error(`evolve failed: ${resp.status}`);
+      }
+
+      const upgrade: LogicUpgrade = {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: Date.now(),
+        title: newTitle,
+        detail: newDetail
+      };
+      setProfile(prev => ({
+        ...prev,
+        logicHistory: [upgrade, ...prev.logicHistory],
+        promptLayer: { ...prev.promptLayer, logic: newDetail }
+      }));
+      setNewTitle('');
+      setNewDetail('');
+    } catch (error) {
+      console.error(error);
+      alert('注入失败，请稍后重试');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isIdle = profile.status === AgentStatus.IDLE;
 
   return (
-    <div className="relative w-full max-w-sm h-[520px] perspective-1000 group">
+    <div className="relative w-full max-w-sm h-[560px] perspective-1000 group">
       <div className={`relative w-full h-full transition-transform duration-700 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
         
         {/* 正面: 员工工牌 */}
@@ -79,7 +109,7 @@ const Badge: React.FC<BadgeProps> = ({ profile, setProfile, isEditable = false }
 
           <button 
             onClick={() => setIsFlipped(true)}
-            className="m-6 py-3 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-gray-400 hover:text-white"
+            className="m-4 py-2.5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-gray-400 hover:text-white"
           >
             翻转查看生存逻辑 ➔
           </button>
@@ -109,9 +139,10 @@ const Badge: React.FC<BadgeProps> = ({ profile, setProfile, isEditable = false }
                 />
                 <button 
                   onClick={addLogic}
+                  disabled={isSaving}
                   className="w-full py-2 bg-amber-500 text-black text-[10px] font-black uppercase rounded-lg hover:bg-amber-400"
                 >
-                  注入逻辑
+                  {isSaving ? '注入中...' : '注入逻辑'}
                 </button>
               </div>
             )}

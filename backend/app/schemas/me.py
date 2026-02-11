@@ -2,6 +2,29 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class EvolveRequest(BaseModel):
+    user_id: str
+    new_trait: str
+    title: str | None = None
+
+
+class AgentStatusRequest(BaseModel):
+    user_id: str
+
+
+class AgentStatusOut(BaseModel):
+    user_id: str
+    status: str
+    is_paused: bool
+    cooldown_until: datetime | None
+
+
+class RebuildInitialTraitResponse(BaseModel):
+    user_id: str
+    updated: bool
+    generated_trait: str
+
+
 class PromptLayerOut(BaseModel):
     layer_no: int
     trait: str

@@ -41,6 +41,18 @@ class SecondMeClient:
 
         return body["data"]
 
+    async def get_user_shades(self, access_token: str) -> dict:
+        url = f"{settings.secondme_api_base_url}/api/secondme/user/shades"
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {access_token}"})
+            resp.raise_for_status()
+            body = resp.json()
+
+        if body.get("code") != 0:
+            raise RuntimeError(f"SecondMe user shades failed: {body}")
+
+        return body["data"]
+
     @staticmethod
     def compute_expires_at(expires_in: int | None) -> datetime | None:
         if not expires_in:

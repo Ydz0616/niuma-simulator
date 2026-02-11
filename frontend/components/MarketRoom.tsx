@@ -93,15 +93,39 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
     setMarketView('battle');
   };
 
-  const handleTogglePause = () => {
-    setProfile(prev => ({
-      ...prev,
-      status: prev.status === AgentStatus.PAUSED ? AgentStatus.IDLE : AgentStatus.PAUSED
-    }));
-    if (profile.status !== AgentStatus.PAUSED) {
-      setActiveTicket(null);
-      setMarketView('idle');
-      setSpectatedMessages([]);
+  const handleTogglePause = async () => {
+    const userId = localStorage.getItem('ox_horse_user_id');
+    if (!userId) {
+      alert('未找到用户登录态，请重新登录');
+      return;
+    }
+
+    const nextPaused = profile.status !== AgentStatus.PAUSED;
+    const endpoint = nextPaused ? '/api/me/agent/pause' : '/api/me/agent/resume';
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+    try {
+      const resp = await fetch(`${apiBase}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      });
+      if (!resp.ok) {
+        throw new Error(`toggle pause failed: ${resp.status}`);
+      }
+
+      setProfile(prev => ({
+        ...prev,
+        status: nextPaused ? AgentStatus.PAUSED : AgentStatus.IDLE
+      }));
+      if (nextPaused) {
+        setActiveTicket(null);
+        setMarketView('idle');
+        setSpectatedMessages([]);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('状态更新失败，请稍后重试');
     }
   };
 

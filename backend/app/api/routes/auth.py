@@ -1,6 +1,8 @@
 import secrets
 from urllib.parse import urlencode
 from urllib.parse import quote_plus
+import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
@@ -11,18 +13,13 @@ from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.models import Agent, AgentPromptLayer, OAuthToken, User
 from app.schemas.auth import OAuthStartResponse
+from app.services.profile_dramatizer import dramatize_initial_trait
 from app.services.secondme_client import secondme_client
 from app.services.state_store import oauth_state_store
 
 settings = get_settings()
 router = APIRouter()
-
-
-def _default_initial_trait(display_name: str, bio: str | None, intro: str | None) -> str:
-    material = "；".join([x for x in [bio, intro] if x])
-    if not material:
-        material = "高压环境高效输出，擅长对齐与闭环。"
-    return f"我是{display_name}，在疯狂大厂求生。我的职场底层逻辑：{material}"
+logger = logging.getLogger(__name__)
 
 
 @router.get("/secondme/start", response_model=OAuthStartResponse)
@@ -55,20 +52,39 @@ async def oauth_callback(code: str = Query(...), state: str = Query(...)) -> Red
         token_data = await secondme_client.exchange_code_for_token(code)
         access_token = token_data["accessToken"]
         user_info = await secondme_client.get_user_info(access_token)
+        shades_data = None
+        if settings.secondme_use_shades_on_bootstrap:
+            try:
+                shades_data = await secondme_client.get_user_shades(access_token)
+            except Exception:  # noqa: BLE001
+                shades_data = None
         expires_at = secondme_client.compute_expires_at(token_data.get("expiresIn"))
 
+        if settings.secondme_debug_log:
+            logger.warning("SecondMe user/info callback: %s", json.dumps(user_info, ensure_ascii=False))
+            if shades_data is not None:
+                logger.warning("SecondMe user/shades callback: %s", json.dumps(shades_data, ensure_ascii=False))
+
         with SessionLocal() as db:
-            user = _upsert_user_and_agent(db, user_info)
+            user = await _upsert_user_and_agent(db, user_info, shades_data)
             _upsert_token(db, user.id, token_data, expires_at)
             db.commit()
+            user_id = str(user.id)
 
-        return RedirectResponse(url=f"{settings.frontend_auth_success_url}&user_id={user.id}", status_code=302)
+        return RedirectResponse(url=f"{settings.frontend_auth_success_url}&user_id={user_id}", status_code=302)
     except Exception as exc:  # noqa: BLE001
         reason = quote_plus(str(exc))
         return RedirectResponse(url=f"{settings.frontend_auth_error_url}&reason={reason}", status_code=302)
 
 
-def _upsert_user_and_agent(db: Session, user_info: dict) -> User:
+async def _build_initial_trait(user_info: dict, shades_data: dict | None = None) -> str:
+    ai_trait = await dramatize_initial_trait(user_info, shades_data)
+    if not ai_trait or not ai_trait.strip():
+        raise RuntimeError("AI trait generation failed")
+    return ai_trait.strip()
+
+
+async def _upsert_user_and_agent(db: Session, user_info: dict, shades_data: dict | None = None) -> User:
     secondme_user_id = str(user_info.get("userId"))
     display_name = user_info.get("name") or f"牛马_{secondme_user_id[-4:]}"
 
@@ -88,8 +104,9 @@ def _upsert_user_and_agent(db: Session, user_info: dict) -> User:
         db.add(agent)
         db.flush()
 
-        init_trait = _default_initial_trait(display_name, user_info.get("bio"), user_info.get("selfIntroduction"))
+        init_trait = await _build_initial_trait(user_info, shades_data)
         db.add(AgentPromptLayer(agent_id=agent.id, layer_no=1, trait=init_trait, source="secondme"))
+        logger.warning("Initial trait created (AI): %s", init_trait)
     else:
         user.display_name = display_name
         user.avatar_url = user_info.get("avatar")

@@ -15,10 +15,10 @@
 4. Call `GET /api/me/card?user_id=<uuid>` -> returns card and prompt layers.
 
 ## Phase 2 - Agent Control
-- [ ] `POST /api/me/evolve` append prompt layer (immutable)
-- [ ] `POST /api/me/agent/pause`
-- [ ] `POST /api/me/agent/resume`
-- [ ] Add constraints and validations for agent state transitions
+- [x] `POST /api/me/evolve` append prompt layer (immutable)
+- [x] `POST /api/me/agent/pause`
+- [x] `POST /api/me/agent/resume`
+- [x] Add constraints and validations for basic state transitions (`IN_MEETING` guarded)
 
 ### Integration Tests
 1. Append 3 layers and verify `layer_no` increments without overwrite.
@@ -61,8 +61,10 @@
 3. Output contains required blackword keywords in rounds.
 
 ## Phase 6 - Frontend Wiring
-- [ ] Replace splash login mock with OAuth redirect
-- [ ] Replace local profile source with `/api/me/card`
+- [x] Replace splash login mock with OAuth redirect
+- [x] Replace local profile source with `/api/me/card`
+- [x] Wire badge evolve action to `/api/me/evolve`
+- [x] Wire pause/resume action to backend status APIs
 - [ ] Replace mock logs/leaderboard with backend APIs
 - [ ] Keep UI unchanged where possible
 

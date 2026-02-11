@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     secondme_api_base_url: str = "https://app.mindos.com/gate/lab"
     secondme_redirect_uri: str = "http://localhost:8000/api/auth/secondme/callback"
     secondme_scopes: str = "user.info user.info.shades chat"
+    secondme_debug_log: bool = True
+    secondme_refresh_initial_trait_on_login: bool = False
+    secondme_use_shades_on_bootstrap: bool = False
+
+    llm_base_url: str = "https://api.ohmygpt.com/v1"
+    llm_api_key: str = ""
+    llm_model: str = "gemini-2.0-flash-exp"
+    llm_timeout_seconds: int = 25
+    llm_max_tokens: int = 140
 
     frontend_auth_success_url: str = "http://localhost:5173/?auth=success"
     frontend_auth_error_url: str = "http://localhost:5173/?auth=error"
