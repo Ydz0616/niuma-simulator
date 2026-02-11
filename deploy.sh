@@ -31,6 +31,10 @@ echo "=== 5. Running DB cleanup (fix_stuck_agents.sql) ==="
 ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose exec -T db psql -U postgres -d corporate_asylum -f /dev/stdin < backend/fix_stuck_agents.sql" || echo "  (skipped — DB may not have tables yet on first deploy)"
 
 echo ""
+echo "=== 6. Applying DB Migrations ==="
+ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose exec -T backend python apply_migration.py"
+
+echo ""
 echo "✅ Deploy complete!"
 echo "   Frontend: https://game.olajob.cn"
 echo "   API:      https://game.olajob.cn/api/"

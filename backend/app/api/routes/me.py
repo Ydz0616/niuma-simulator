@@ -47,6 +47,7 @@ def get_me_card(user_id: UUID = Query(...), db: Session = Depends(get_db)) -> Me
     layers = [
         PromptLayerOut(
             layer_no=layer.layer_no,
+            title=layer.title,
             trait=layer.trait,
             source=layer.source,
             created_at=layer.created_at,
@@ -93,8 +94,11 @@ def get_me_card(user_id: UUID = Query(...), db: Session = Depends(get_db)) -> Me
 @router.post("/evolve", response_model=MeCardOut)
 def evolve_agent(req: EvolveRequest, db: Session = Depends(get_db)) -> MeCardOut:
     trait = req.new_trait.strip()
+    title = req.title.strip()
     if not trait:
         raise HTTPException(status_code=400, detail="new_trait cannot be empty")
+    if not title:
+        raise HTTPException(status_code=400, detail="title cannot be empty")
 
     try:
         user_uuid = UUID(req.user_id)
@@ -116,7 +120,13 @@ def evolve_agent(req: EvolveRequest, db: Session = Depends(get_db)) -> MeCardOut
         select(func.max(AgentPromptLayer.layer_no)).where(AgentPromptLayer.agent_id == agent.id)
     )
     next_layer_no = (max_layer_no or 0) + 1
-    db.add(AgentPromptLayer(agent_id=agent.id, layer_no=next_layer_no, trait=trait, source="user"))
+    db.add(AgentPromptLayer(
+        agent_id=agent.id,
+        layer_no=next_layer_no,
+        title=title,
+        trait=trait,
+        source="user"
+    ))
     db.commit()
 
     return get_me_card(user_id=user.id, db=db)

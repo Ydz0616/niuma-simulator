@@ -1,0 +1,1 @@
+ALTER TABLE agent_prompt_layers ADD COLUMN IF NOT EXISTS title VARCHAR(32) NOT NULL DEFAULT '进化逻辑';

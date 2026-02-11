@@ -1,11 +1,11 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EvolveRequest(BaseModel):
     user_id: str
-    new_trait: str
-    title: str | None = None
+    new_trait: str = Field(..., max_length=25)
+    title: str = Field(..., max_length=5)
 
 
 class AgentStatusRequest(BaseModel):
@@ -27,6 +27,7 @@ class RebuildInitialTraitResponse(BaseModel):
 
 class PromptLayerOut(BaseModel):
     layer_no: int
+    title: str
     trait: str
     source: str
     created_at: datetime
