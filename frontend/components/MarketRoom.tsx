@@ -337,15 +337,15 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
                 <img src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${profile.name}`} alt="avatar" />
              </div>
              <div className="text-right">
-                <div className="text-[10px] font-black text-white leading-none">P{profile.level} {profile.name}</div>
-                <div className="text-[8px] text-amber-500/80 font-mono mt-0.5 tracking-tighter uppercase">{profile.status}</div>
+                <div className="text-xs font-black text-white leading-none">P{profile.level} {profile.name}</div>
+                <div className="text-[10px] text-amber-500/80 font-mono mt-0.5 tracking-tighter uppercase">{profile.status}</div>
              </div>
           </div>
 
           <div className="flex gap-4">
             <MiniStat label="KPI" value={profile.attributes.kpi} color="text-green-500" />
             <div className="flex flex-col justify-center">
-               <div className="text-[8px] text-gray-500 font-black uppercase mb-0.5">内卷压力</div>
+               <div className="text-[10px] text-gray-500 font-black uppercase mb-0.5">内卷压力</div>
                <div className="w-20 h-1.5 bg-black rounded-full overflow-hidden border border-white/5">
                   <div className="h-full bg-red-500 shadow-[0_0_8px_#ef4444]" style={{ width: `${profile.attributes.involution}%` }}></div>
                </div>
@@ -357,7 +357,7 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
           <button 
             onClick={handleTogglePause}
             disabled={pauseLocked}
-            className={`ml-4 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
+            className={`ml-4 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
               pauseLocked
                 ? 'bg-neutral-900 text-gray-600 cursor-not-allowed'
                 : profile.status === AgentStatus.PAUSED
@@ -375,48 +375,48 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
         {/* 左侧栏：动态与情报 */}
         <div className="w-80 border-r border-white/5 bg-black/20 flex flex-col">
           <div className="p-6 border-b border-white/5">
-             <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">
+             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">
                {profile.status === AgentStatus.PAUSED ? "✨ 偷懒模式已开启" : "💼 任务处理器"}
              </h3>
              {profile.status === AgentStatus.PAUSED ? (
                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl animate-pulse">
-                  <div className="text-xs font-black text-amber-500">正在观摩别人吵架...</div>
-                  <div className="text-[9px] text-gray-400 mt-1">点击下方大厅条目即可进入围观</div>
+                  <div className="text-sm font-black text-amber-500">正在观摩别人吵架...</div>
+                  <div className="text-[10px] text-gray-400 mt-1">点击下方大厅条目即可进入围观</div>
                </div>
              ) : profile.status === AgentStatus.COOLDOWN ? (
                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
-                  <div className="text-xs font-black text-red-400">强制停机中...</div>
-                  <div className="text-[9px] text-gray-400 mt-1">内卷值过高，系统冷却剩余 {cooldownSecs}s</div>
+                  <div className="text-sm font-black text-red-400">强制停机中...</div>
+                  <div className="text-[10px] text-gray-400 mt-1">内卷值过高，系统冷却剩余 {cooldownSecs}s</div>
                </div>
              ) : isMeetingSyncing ? (
                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
-                  <div className="text-xs font-black text-blue-400">会议同步中...</div>
-                  <div className="text-[9px] text-gray-400 mt-1 italic tracking-tighter text-center">状态已在开会，正在拉取你的工单会话</div>
+                  <div className="text-sm font-black text-blue-400">会议同步中...</div>
+                  <div className="text-[10px] text-gray-400 mt-1 italic tracking-tighter text-center">状态已在开会，正在拉取你的工单会话</div>
                </div>
              ) : activeTicket ? (
                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                  <div className="text-xs font-black text-amber-500">{activeTicket.title}</div>
-                  <div className="text-[9px] text-gray-400 mt-1 uppercase italic tracking-tighter">派单中: {marketView}</div>
+                  <div className="text-sm font-black text-amber-500">{activeTicket.title}</div>
+                  <div className="text-[10px] text-gray-400 mt-1 uppercase italic tracking-tighter">派单中: {marketView}</div>
                </div>
              ) : (
                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-2xl">
-                  <div className="text-xs font-black text-green-500">待命中...</div>
-                  <div className="text-[9px] text-gray-400 mt-1 italic tracking-tighter text-center">老板正在为您精心挑选工单</div>
+                  <div className="text-sm font-black text-green-500">待命中...</div>
+                  <div className="text-[10px] text-gray-400 mt-1 italic tracking-tighter text-center">老板正在为您精心挑选工单</div>
                </div>
              )}
           </div>
 
           <div className="flex-1 p-6 overflow-hidden flex flex-col">
-             <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex justify-between items-center">
+             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 flex justify-between items-center">
                 <span>实时观战大厅</span>
-                {profile.status !== AgentStatus.PAUSED && <span className="text-[8px] text-red-500 font-normal">仅偷懒模式可围观</span>}
+                {profile.status !== AgentStatus.PAUSED && <span className="text-[10px] text-red-500 font-normal">仅偷懒模式可围观</span>}
              </h3>
              <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-2">
                 {battleSpectate.map(log => (
                   <div 
                     key={log.id} 
                     onClick={() => startSpectating(log)}
-                    className={`text-[10px] p-3 rounded-xl border transition-all ${
+                    className={`text-xs p-3 rounded-xl border transition-all ${
                       profile.status === AgentStatus.PAUSED 
                       ? 'bg-white/5 border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer' 
                       : 'bg-black/20 border-white/5 opacity-50 cursor-not-allowed'
@@ -433,10 +433,10 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
           </div>
 
           <div className="h-48 p-6 bg-black/40 border-t border-white/5 flex flex-col">
-             <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">摸鱼内幕吐槽</h3>
+             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">摸鱼内幕吐槽</h3>
              <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-2">
                 {dramaLogs.map(log => (
-                  <div key={log.id} className="text-[9px] text-gray-500">
+                  <div key={log.id} className="text-[10px] text-gray-500">
                     <span className="text-amber-500/50">[{log.author}]</span>: {log.message}
                   </div>
                 ))}
@@ -450,8 +450,8 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
             <div className="h-full flex flex-col animate-in fade-in duration-500 bg-black/40">
               <div className="p-6 border-b border-white/5 flex justify-between items-center bg-black/20">
                 <div>
-                   <div className="text-xs font-black text-amber-500 uppercase tracking-tighter">观战模式正在运行</div>
-                   <div className="text-[10px] text-gray-500 font-mono mt-1">围观话题: {spectateTarget.title}</div>
+                   <div className="text-sm font-black text-amber-500 uppercase tracking-tighter">观战模式正在运行</div>
+                   <div className="text-xs text-gray-500 font-mono mt-1">围观话题: {spectateTarget.title}</div>
                 </div>
                 <button 
                   onClick={() => setMarketView('idle')} 
@@ -463,7 +463,7 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
               <div className="flex-1 p-8 space-y-6 overflow-y-auto custom-scrollbar font-mono text-sm">
                  {spectatedMessages.map((m, idx) => (
                    <div key={idx} className={`max-w-[80%] space-y-1 ${m.role === 'agent_a' ? 'ml-auto text-right' : ''}`}>
-                      <div className={`text-[10px] font-black uppercase ${m.role === 'agent_a' ? 'text-amber-500' : 'text-blue-500'}`}>
+                      <div className={`text-xs font-black uppercase ${m.role === 'agent_a' ? 'text-amber-500' : 'text-blue-500'}`}>
                          {m.senderName}
                       </div>
                       <div className={`p-4 rounded-2xl border ${m.role === 'agent_a' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-blue-500/5 border-blue-500/20'} text-gray-300 italic`}>
@@ -474,12 +474,12 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
                  {spectatedMessages.length === 0 && (
                    <div className="h-full flex flex-col items-center justify-center text-gray-600 space-y-4">
                       <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
-                      <div className="text-[10px] uppercase font-black">正在解析数据流...</div>
+                      <div className="text-xs uppercase font-black">正在解析数据流...</div>
                    </div>
                  )}
               </div>
               <div className="p-4 bg-amber-500/5 border-t border-amber-500/10 text-center">
-                 <span className="text-[9px] text-amber-500/50 font-black uppercase tracking-[0.2em] animate-pulse">
+                 <span className="text-[10px] text-amber-500/50 font-black uppercase tracking-[0.2em] animate-pulse">
                    --- 本对战由系统自动匹配，您正在以隐身模式进行围观 ---
                  </span>
               </div>
@@ -492,10 +492,10 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
                 这是牛马神圣不可侵犯的休息时刻。现在您可以点击左侧“实时观战大厅”看别人对线，学习更高级的职场黑话。
               </p>
               <div className="flex gap-4">
-                <div className="px-4 py-2 bg-neutral-900 border border-white/5 rounded-xl text-[10px] text-amber-500 font-black animate-pulse">
+                <div className="px-4 py-2 bg-neutral-900 border border-white/5 rounded-xl text-xs text-amber-500 font-black animate-pulse">
                   自动派单: 已挂起
                 </div>
-                <div className="px-4 py-2 bg-neutral-900 border border-white/5 rounded-xl text-[10px] text-blue-500 font-black">
+                <div className="px-4 py-2 bg-neutral-900 border border-white/5 rounded-xl text-xs text-blue-500 font-black">
                   观战模式: 可用
                 </div>
               </div>
@@ -537,7 +537,7 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
               <p className="text-gray-500 text-sm max-w-sm mb-8 leading-relaxed">
                 你当前压力值过高，系统已强制休息。冷却结束后将自动恢复待命。
               </p>
-              <div className="px-4 py-2 bg-neutral-900 border border-red-500/30 rounded-xl text-[10px] text-red-400 font-black">
+              <div className="px-4 py-2 bg-neutral-900 border border-red-500/30 rounded-xl text-xs text-red-400 font-black">
                 冷却倒计时: {cooldownSecs}s
               </div>
             </div>
@@ -600,8 +600,8 @@ const MarketRoom: React.FC<MarketRoomProps> = ({ profile, setProfile, onExit }) 
 
 const MiniStat = ({ label, value, color = "text-white" }: { label: string, value: any, color?: string }) => (
   <div className="text-center flex flex-col justify-center">
-    <div className="text-[8px] text-gray-500 font-black uppercase leading-none mb-1">{label}</div>
-    <div className={`text-xs font-black ${color} leading-none`}>{value}</div>
+    <div className="text-[10px] text-gray-500 font-black uppercase leading-none mb-1">{label}</div>
+    <div className={`text-sm font-black ${color} leading-none`}>{value}</div>
   </div>
 );
 

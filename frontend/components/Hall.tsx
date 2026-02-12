@@ -87,13 +87,13 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
       <div className="lg:col-span-5 flex flex-col gap-6">
         <section className="bg-black/40 border border-white/5 h-[400px] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
           <div className="p-4 border-b border-white/5 bg-neutral-900/50 flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-widest text-amber-500 flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
               职场实时动态 (DRAMA)
             </span>
-            <span className="text-[9px] font-mono text-gray-500 uppercase">Node Stream</span>
+            <span className="text-[10px] font-mono text-gray-500 uppercase">Node Stream</span>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 font-mono text-xs custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 font-mono text-sm custom-scrollbar">
             {logs.map(log => (
               <div key={log.id} className="flex gap-3 animate-in slide-in-from-left-2 duration-300">
                 <span className="text-gray-600">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
@@ -113,14 +113,14 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
         <section className="bg-neutral-900/80 border border-white/5 p-6 rounded-3xl shadow-xl h-full flex flex-col">
           <div className="flex justify-between items-end mb-6 border-b border-white/5 pb-4">
              <div>
-               <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-4">
+               <h3 className="text-base font-black text-white uppercase tracking-widest flex items-center gap-4">
                   🏆 牛马光荣榜
                </h3>
-               <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mt-1">
+               <div className="text-xs font-black text-white/30 uppercase tracking-widest mt-1">
                   Rank: <span className="text-white">#{profile.rank > 999 ? '999+' : profile.rank}</span>
                </div>
              </div>
-             <div className="text-[9px] text-amber-500 font-black uppercase tracking-widest">
+             <div className="text-[10px] text-amber-500 font-black uppercase tracking-widest">
                 KPI SCORE ↴
              </div>
           </div>
@@ -134,13 +134,13 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
                     {idx + 1}
                   </div>
                   <div className="flex-1">
-                    <div className={`text-xs font-black group-hover:text-amber-500 ${isMe ? 'text-amber-500' : 'text-gray-200'}`}>
+                    <div className={`text-sm font-black group-hover:text-amber-500 ${isMe ? 'text-amber-500' : 'text-gray-200'}`}>
                       {item.nickname} {isMe && <span className="text-white/30 ml-1">(我)</span>}
                     </div>
-                    <div className="text-[9px] text-gray-500 uppercase font-bold">{getLevelTitle(item.level)}</div>
+                    <div className="text-[10px] text-gray-500 uppercase font-bold">{getLevelTitle(item.level)}</div>
                   </div>
                   <div className="text-right">
-                    <div className={`text-[10px] font-black ${isMe ? 'text-amber-500' : 'text-amber-500'}`}>{item.kpi_score}</div>
+                    <div className={`text-xs font-black ${isMe ? 'text-amber-500' : 'text-amber-500'}`}>{item.kpi_score}</div>
                   </div>
                 </div>
               );
@@ -157,13 +157,13 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
                     {profile.rank <= 10 ? profile.rank : '?'}
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs font-black text-amber-500">
+                    <div className="text-sm font-black text-amber-500">
                       {profile.rank <= 10 ? '我的排名' : '还需努力'} <span className="text-amber-500/50 ml-1">(我)</span>
                     </div>
-                    <div className="text-[9px] text-gray-400 uppercase font-bold">{getLevelTitle(profile.level)}</div>
+                    <div className="text-[10px] text-gray-400 uppercase font-bold">{getLevelTitle(profile.level)}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] font-black text-amber-500">{profile.attributes.kpi}</div>
+                    <div className="text-xs font-black text-amber-500">{profile.attributes.kpi}</div>
                   </div>
                 </div>
               </div>
@@ -177,9 +177,9 @@ const Hall: React.FC<HallProps> = ({ profile, setProfile, onStartAgent }) => {
 
 const StatusBox = ({ label, value, sub, color }: { label: string, value: string, sub: string, color: string }) => (
   <div className="bg-neutral-900/50 border border-white/5 p-4 rounded-2xl">
-    <div className="text-[9px] text-gray-600 font-black uppercase mb-1">{label}</div>
-    <div className={`text-xl font-black ${color}`}>{value}</div>
-    <div className="text-[8px] text-gray-700 mt-1 uppercase">{sub}</div>
+    <div className="text-[10px] text-gray-600 font-black uppercase mb-1">{label}</div>
+    <div className={`text-2xl font-black ${color}`}>{value}</div>
+    <div className="text-[10px] text-gray-700 mt-1 uppercase">{sub}</div>
   </div>
 );
 

@@ -195,7 +195,7 @@ const App: React.FC = () => {
               <div className="w-14 h-14 ox-gradient rounded-2xl flex items-center justify-center text-3xl shadow-xl shadow-amber-500/10">🐄</div>
               <div>
                 <h1 className="text-3xl font-black italic tracking-tighter text-white leading-none underline decoration-amber-500">牛马模拟器</h1>
-                <p className="text-[10px] text-amber-500 font-black uppercase tracking-[0.3em] mt-1.5">Agent-to-Agent Logic Wars</p>
+                <p className="text-xs text-amber-500 font-black uppercase tracking-[0.3em] mt-1.5">Agent-to-Agent Logic Wars</p>
               </div>
             </div>
 
@@ -222,7 +222,7 @@ const App: React.FC = () => {
       )}
 
       {view === 'hall' && (
-        <footer className="mt-16 py-8 border-t border-white/5 w-full max-w-7xl flex flex-col md:flex-row justify-between items-center gap-4 opacity-30 text-[10px] font-black uppercase tracking-widest">
+        <footer className="mt-16 py-8 border-t border-white/5 w-full max-w-7xl flex flex-col md:flex-row justify-between items-center gap-4 opacity-30 text-xs font-black uppercase tracking-widest">
           <div>© 2024 OX-HORSE KERNEL • v6.0.0-PROD</div>
           <div className="flex gap-6">
              <span>延迟: 14ms</span>
@@ -236,8 +236,8 @@ const App: React.FC = () => {
 
 const StatItem = ({ label, value, color = "text-white" }: { label: string, value: string, color?: string }) => (
   <div className="text-right">
-    <div className="text-[9px] text-gray-600 font-black uppercase mb-0.5">{label}</div>
-    <div className={`text-xs font-black italic ${color}`}>{value}</div>
+    <div className="text-[10px] text-gray-600 font-black uppercase mb-0.5">{label}</div>
+    <div className={`text-sm font-black italic ${color}`}>{value}</div>
   </div>
 );
 
