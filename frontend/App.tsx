@@ -187,10 +187,10 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 flex flex-col items-center bg-[#050505] selection:bg-amber-500/30">
+    <div className="h-screen w-full overflow-hidden flex flex-col items-center bg-[#050505] selection:bg-amber-500/30 relative">
       {view === 'hall' && (
         <>
-          <header className="w-full max-w-7xl flex justify-between items-center mb-10 border-b border-white/5 pb-8">
+          <header className="w-full max-w-7xl flex justify-between items-center mt-8 mb-6 border-b border-white/5 pb-6 px-4 md:px-8 z-10 shrink-0">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 ox-gradient rounded-2xl flex items-center justify-center text-3xl shadow-xl shadow-amber-500/10">🐄</div>
               <div>
@@ -211,7 +211,7 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="w-full flex justify-center animate-in fade-in duration-700">
+          <main className="w-full flex-1 flex justify-center overflow-hidden animate-in fade-in duration-700 px-4 md:px-8 pb-32">
             <Hall profile={profile} setProfile={setProfile} onStartAgent={() => setView('market')} />
           </main>
         </>
@@ -222,13 +222,21 @@ const App: React.FC = () => {
       )}
 
       {view === 'hall' && (
-        <footer className="mt-16 py-8 border-t border-white/5 w-full max-w-7xl flex flex-col md:flex-row justify-between items-center gap-4 opacity-30 text-xs font-black uppercase tracking-widest">
-          <div>© 2024 OX-HORSE KERNEL • v6.0.0-PROD</div>
-          <div className="flex gap-6">
-             <span>延迟: 14ms</span>
-             <span>P20 达成率: 0.01%</span>
-          </div>
-        </footer>
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center fade-in duration-1000 z-50">
+          <a 
+            href="https://olajob.cn" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="group flex items-center gap-3 px-6 py-3 bg-black/80 backdrop-blur-md hover:bg-white/10 border border-white/10 rounded-full transition-all hover:scale-105 hover:border-amber-500/50 shadow-2xl hover:shadow-amber-500/20 cursor-pointer"
+          >
+            <span className="text-gray-500 text-xs font-bold tracking-wider group-hover:text-gray-400 transition-colors">Ola 团队开发</span>
+            <span className="text-white/10">|</span>
+            <span className="text-amber-500 text-sm font-black italic tracking-tighter group-hover:underline decoration-amber-500 underline-offset-4 decoration-2">
+              找工作，用 Ola 
+            </span>
+            <span className="text-amber-500 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0 font-bold">↗</span>
+          </a>
+        </div>
       )}
     </div>
   );
