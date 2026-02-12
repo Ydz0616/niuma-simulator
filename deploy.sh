@@ -16,6 +16,7 @@ rsync -avz --progress \
 
 echo ""
 echo "=== 2. Building and starting containers on server ==="
+ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose exec -T db psql -U postgres -d corporate_asylum -f /dev/stdin < backend/stop_all_battles.sql" || echo "  (skipped — DB may not be running)"
 ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose down && docker compose build --no-cache && docker compose up -d"
 
 echo ""
