@@ -32,7 +32,7 @@ ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose exec -T db psql -U postgres 
 
 echo ""
 echo "=== 6. Applying DB Migrations ==="
-ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose exec -T backend python apply_migration.py"
+# ssh "${SERVER}" "cd ${REMOTE_DIR} && docker compose exec -T backend python apply_migration.py"
 
 echo ""
 echo "✅ Deploy complete!"
